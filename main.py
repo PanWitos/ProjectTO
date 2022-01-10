@@ -43,10 +43,12 @@ class GameLoop:
         self._list = ObjectsList()
         self._state = None
         self._bg = Background()
-        self.FPS = 60
+        self._FPS = 60
         surface.fill((255, 255, 255))
+        self._FramePerSec = pygame.time.Clock()
+        self._font_small = pygame.font.SysFont("Verdana", 20)
         pygame.display.set_caption("Game")
-        self.FramePerSec = pygame.time.Clock()
+        self._iCounter = 0
         self.gameLoop()
     def gameLoop(self):
         player = PlayerShip((200,200),(30,30),'assets/P1.png')
@@ -57,10 +59,15 @@ class GameLoop:
                     sys.exit()
             self._bg.update()
             self._bg.render()
+
+            scores = self._font_small.render(str(self._iCounter), True, (255,255,255))
+            surface.blit(scores, (10,10))
+
             surface.blit(player.getSprite(), player.getPos())
             player.movement()
+            self._iCounter += 1
             pygame.display.update()
-            self.FramePerSec.tick(self.FPS)
+            self._FramePerSec.tick(self._FPS)
 
 class ScreenObject:
     def __init__(self, position, hitbox, spritePath):
@@ -76,12 +83,12 @@ class ScreenObject:
 class Debris(ScreenObject):
     def __init__(self, position, hitbox, spritePath):
         super().__init__(position, hitbox, spritePath)
-        self._speed = 5
+        self._speed = 10
 
 class PlayerShip(ScreenObject):
     def __init__(self, position, hitbox, spritePath):
         super().__init__(position, hitbox, spritePath)
-        self._health=10
+        self._health = 10
     def movement(self):
         pressed_keys = pygame.key.get_pressed()
         if self._pos.left > 0:
@@ -90,10 +97,20 @@ class PlayerShip(ScreenObject):
         if self._pos.right < 600:        
             if pressed_keys[K_RIGHT]:
                 self._pos.move_ip(5, 0)
-        if pressed_keys[K_UP]:
-            self._pos.move_ip(0, -5)
-        if pressed_keys[K_DOWN]:
-            self._pos.move_ip(0,5)
+        if self._pos.top > 0:    
+            if pressed_keys[K_UP]:
+                self._pos.move_ip(0, -5)
+        if self._pos.bottom < 700:    
+            if pressed_keys[K_DOWN]:
+                self._pos.move_ip(0,5)
+
+class Enemy(ScreenObject):
+    def __init__(self, position, hitbox, spritePath, health, speed):
+        super().__init__(position, hitbox, spritePath)
+        self._health = health
+        self._speed = speed
+    def movement(self):
+        self.rect.move_ip(0,self._speed)
 
 class ObjectsList(metaclass = Singleton):
     def __init__(self):
