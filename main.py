@@ -48,9 +48,11 @@ class GameLoop():
         self._font_small = pygame.font.SysFont("Verdana", 20)
         pygame.display.set_caption("Game")
         self._iCounter = 0
+        self.dt = 20
         self.gameLoop()
     def gameLoop(self):
         objectsList = ObjectsList()
+        debrisList = ObjectsDebrisList()
         player = PlayerShip((300,600),(15,15),'assets/graphics/player/P1.png')
         enemy = Enemy((300,200),(25,25),'assets/graphics/enemy/E1.png',1, 5)
         enemy2 = Enemy((200,200),(25,25),'assets/graphics/enemy/E1.png',2, 5)
@@ -82,8 +84,11 @@ class GameLoop():
             
             if pygame.sprite.spritecollideany(player, enemyList):
                 e1 = pygame.sprite.spritecollideany(player, enemyList)
-                print(e1.health)
-                e1.removeObject()
+                e1.removeObject(self._iCounter)
+
+            if (self._iCounter % self.dt)==0:
+                for object in debrisList:
+                    object.update(self._iCounter)
 
             self._iCounter += 1
             pygame.display.update()
@@ -92,6 +97,7 @@ class GameLoop():
 class ScreenObject():
     def __init__(self, position, hitbox, spritePath):
         self._hitbox = pygame.Surface(hitbox)
+        self._position = position
         self.rect = self._hitbox.get_rect(center = position)
         self._state = None
         self._sprite = pygame.transform.scale(pygame.image.load(spritePath), (32,32))
@@ -99,15 +105,36 @@ class ScreenObject():
         return self.rect
     def getSprite(self):
         return self._sprite
-    def removeObject(self):
+    def removeObject(self, frame):
         objectsList = ObjectsList()
-        objectsList.remove(self)
+        objectsList.removeObject(self)
         
 
 class Debris(ScreenObject):
-    def __init__(self, position, hitbox, spritePath):
+    def __init__(self, position, hitbox, spritePath, frame):
         super().__init__(position, hitbox, spritePath)
-        self._speed = 10
+        self._pathList = list(spritePath)
+        self._frame = frame
+        self._endFrame = frame + 120
+        self._iCounter = 0
+        a = animatedSprite()
+        self._animated = a.animated(spritePath)
+    def changeSprite(self, sprite):
+        self._sprite = sprite
+    def update(self, frame):
+        if frame >= self._endFrame:
+            self.removeObject(frame)
+        else:
+            self.changeSprite(pygame.transform.scale(self._animated[self._iCounter],(32,32)))
+            self._iCounter += 1
+    def movement(self):
+        pass
+    def removeObject(self, frame):
+        objectsList = ObjectsList()
+        debrisList = ObjectsDebrisList()
+        debrisList.removeObject(self)
+        objectsList.removeObject(self)
+
 
 class PlayerShip(ScreenObject):
     def __init__(self, position, hitbox, spritePath):
@@ -147,9 +174,13 @@ class Enemy(ScreenObject):
     def rotCenter(self, angle):
         self._sprite = pygame.transform.rotate(self._sprite, angle)
         self.rect = self._sprite.get_rect(center=self.rect.center)
-    def removeObject(self):
+    def removeObject(self, frame):
+        explosion = Debris(self._position, (32,32), 'assets/graphics/animated/expl1.png', frame)
+        debrisList = ObjectsDebrisList()
         objectsList = ObjectsList()
         enemyList = ObjectsEnemyList()
+        debrisList.addObject(explosion)
+        objectsList.addObject(explosion)
         enemyList.removeObject(self)
         objectsList.removeObject(self)
 
@@ -158,6 +189,16 @@ class Bullet(ScreenObject):
         super().__init__(position, hitbox, spritePath)
 
 class ObjectsList(metaclass = Singleton):
+    def __init__(self):
+        self._objectsList = []
+    def addObject(self, object):
+        self._objectsList.append(object)
+    def removeObject(self, object):
+        self._objectsList.remove(object)
+    def __iter__(self):
+        return ObjectsListIterator(self)
+
+class ObjectsDebrisList(metaclass = Singleton):
     def __init__(self):
         self._objectsList = []
     def addObject(self, object):
@@ -212,6 +253,17 @@ class Background():
       def render(self):
          surface.blit(self.bgimage, (self.bgX1, self.bgY1))
          surface.blit(self.bgimage, (self.bgX2, self.bgY2))
+
+class animatedSprite():
+    def animated(self, path):
+        self._pathList = list(path)
+        self._list = []
+        for i in range(0,8):
+            self._pathList[29] = str(1+i)
+            image = pygame.image.load("".join(self._pathList))
+            self._list.append(image)
+        return self._list
+
 
 class main(metaclass = Singleton):
     game = Game()
