@@ -48,7 +48,7 @@ class GameLoop():
         self._font_small = pygame.font.SysFont("Verdana", 20)
         pygame.display.set_caption("Game")
         self._iCounter = 0
-        self.dt = 20
+        self._dt = 10
         self.gameLoop()
     def gameLoop(self):
         objectsList = ObjectsList()
@@ -86,7 +86,7 @@ class GameLoop():
                 e1 = pygame.sprite.spritecollideany(player, enemyList)
                 e1.removeObject(self._iCounter)
 
-            if (self._iCounter % self.dt)==0:
+            if (self._iCounter % self._dt)==0:
                 for object in debrisList:
                     object.update(self._iCounter)
 
@@ -115,7 +115,7 @@ class Debris(ScreenObject):
         super().__init__(position, hitbox, spritePath)
         self._pathList = list(spritePath)
         self._frame = frame
-        self._endFrame = frame + 120
+        self._endFrame = frame + 80
         self._iCounter = 0
         a = animatedSprite()
         self._animated = a.animated(spritePath)
@@ -123,6 +123,7 @@ class Debris(ScreenObject):
         self._sprite = sprite
     def update(self, frame):
         if frame >= self._endFrame:
+            print("exploded")
             self.removeObject(frame)
         else:
             self.changeSprite(pygame.transform.scale(self._animated[self._iCounter],(32,32)))
