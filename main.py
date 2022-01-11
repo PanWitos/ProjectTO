@@ -4,7 +4,7 @@ import sys
 from pygame.locals import *
 import random, time
 
-surface = pygame.display.set_mode((600,700))
+surface = pygame.display.set_mode((600,800))
 
 class Singleton(type):
     _instances = {}
@@ -24,10 +24,9 @@ class Game(metaclass = Singleton):
     def menuInit(self):
         self._menu = Menu()
         menuData = self._menu.menuInit()
-        menuData.mainloop(surface)
-        
+        menuData.mainloop(surface)     
 
-class Menu:
+class Menu():
     def __init__(self):
         self._size = (400,600)
         self._game = Game()
@@ -38,11 +37,11 @@ class Menu:
         menu.add.button('Exit', pygame_menu.events.EXIT)
         return menu
 
-class GameLoop:
+class GameLoop():
     def __init__(self):
         self._list = ObjectsList()
         self._state = None
-        self._bg = Background()
+        self._bg = Background('assets/graphics/other/space3.png')
         self._FPS = 60
         surface.fill((255, 255, 255))
         self._FramePerSec = pygame.time.Clock()
@@ -51,7 +50,21 @@ class GameLoop:
         self._iCounter = 0
         self.gameLoop()
     def gameLoop(self):
-        player = PlayerShip((200,200),(30,30),'assets/P1.png')
+        objectsList = ObjectsList()
+        player = PlayerShip((300,600),(15,15),'assets/graphics/player/P1.png')
+        enemy = Enemy((300,200),(25,25),'assets/graphics/enemy/E1.png',1, 5)
+        enemy2 = Enemy((200,200),(25,25),'assets/graphics/enemy/E1.png',2, 5)
+        enemy3 = Enemy((400,200),(25,25),'assets/graphics/enemy/E1.png',3, 5)
+        enemyList = ObjectsEnemyList()
+        enemyList.addObject(enemy)
+        enemyList.addObject(enemy2)
+        enemyList.addObject(enemy3)
+        objectsList.addObject(player)
+        objectsList.addObject(enemy)
+        objectsList.addObject(enemy2)
+        objectsList.addObject(enemy3)
+        for enem in enemyList:
+            enem.rotCenter(180)
         while True:
             for event in pygame.event.get():    
                 if event.type == QUIT:
@@ -63,22 +76,33 @@ class GameLoop:
             scores = self._font_small.render(str(self._iCounter), True, (255,255,255))
             surface.blit(scores, (10,10))
 
-            surface.blit(player.getSprite(), player.getPos())
-            player.movement()
+            for object in objectsList:
+                surface.blit(object.getSprite(), object.getPos())
+                object.movement()
+            
+            if pygame.sprite.spritecollideany(player, enemyList):
+                e1 = pygame.sprite.spritecollideany(player, enemyList)
+                print(e1.health)
+                e1.removeObject()
+
             self._iCounter += 1
             pygame.display.update()
             self._FramePerSec.tick(self._FPS)
 
-class ScreenObject:
+class ScreenObject():
     def __init__(self, position, hitbox, spritePath):
         self._hitbox = pygame.Surface(hitbox)
-        self._pos = self._hitbox.get_rect(center = position)
+        self.rect = self._hitbox.get_rect(center = position)
         self._state = None
-        self._sprite = pygame.image.load(spritePath)
+        self._sprite = pygame.transform.scale(pygame.image.load(spritePath), (32,32))
     def getPos(self):
-        return self._pos
+        return self.rect
     def getSprite(self):
         return self._sprite
+    def removeObject(self):
+        objectsList = ObjectsList()
+        objectsList.remove(self)
+        
 
 class Debris(ScreenObject):
     def __init__(self, position, hitbox, spritePath):
@@ -91,39 +115,82 @@ class PlayerShip(ScreenObject):
         self._health = 10
     def movement(self):
         pressed_keys = pygame.key.get_pressed()
-        if self._pos.left > 0:
-            if pressed_keys[K_LEFT]:
-                self._pos.move_ip(-5, 0)
-        if self._pos.right < 600:        
-            if pressed_keys[K_RIGHT]:
-                self._pos.move_ip(5, 0)
-        if self._pos.top > 0:    
-            if pressed_keys[K_UP]:
-                self._pos.move_ip(0, -5)
-        if self._pos.bottom < 700:    
-            if pressed_keys[K_DOWN]:
-                self._pos.move_ip(0,5)
+        if self.rect.left > 0:
+            if pressed_keys[K_LEFT] and pressed_keys[K_LSHIFT]:
+                self.rect.move_ip(-4, 0)
+            elif pressed_keys[K_LEFT]:
+                self.rect.move_ip(-8, 0)
+        if self.rect.right < 600:  
+            if pressed_keys[K_RIGHT] and pressed_keys[K_LSHIFT]:
+                self.rect.move_ip(4, 0)      
+            elif pressed_keys[K_RIGHT]:
+                self.rect.move_ip(8, 0)
+        if self.rect.top > 0: 
+            if pressed_keys[K_UP] and pressed_keys[K_LSHIFT]:
+                self.rect.move_ip(0, -4) 
+            elif pressed_keys[K_UP]:
+                self.rect.move_ip(0, -8)
+        if self.rect.bottom < 700: 
+            if pressed_keys[K_DOWN] and pressed_keys[K_LSHIFT]:
+                self.rect.move_ip(0,4)
+            elif pressed_keys[K_DOWN]:
+                self.rect.move_ip(0,8)
 
 class Enemy(ScreenObject):
     def __init__(self, position, hitbox, spritePath, health, speed):
         super().__init__(position, hitbox, spritePath)
-        self._health = health
+        self.health = health
         self._speed = speed
     def movement(self):
-        self.rect.move_ip(0,self._speed)
+        pass
+        #self.rect.move_ip(0,self._speed)
+    def rotCenter(self, angle):
+        self._sprite = pygame.transform.rotate(self._sprite, angle)
+        self.rect = self._sprite.get_rect(center=self.rect.center)
+    def removeObject(self):
+        objectsList = ObjectsList()
+        enemyList = ObjectsEnemyList()
+        enemyList.removeObject(self)
+        objectsList.removeObject(self)
+
+class Bullet(ScreenObject):
+    def __init__(self, position, hitbox, spritePath):
+        super().__init__(position, hitbox, spritePath)
 
 class ObjectsList(metaclass = Singleton):
     def __init__(self):
         self._objectsList = []
     def addObject(self, object):
         self._objectsList.append(object)
-        
     def removeObject(self, object):
         self._objectsList.remove(object)
+    def __iter__(self):
+        return ObjectsListIterator(self)
+
+class ObjectsEnemyList(metaclass = Singleton):
+    def __init__(self):
+        self._objectsList = []
+    def addObject(self, object):
+        self._objectsList.append(object)
+    def removeObject(self, object):
+        self._objectsList.remove(object)
+    def __iter__(self):
+        return ObjectsListIterator(self)
+
+class ObjectsListIterator():
+    def __init__(self, list):
+        self._objectsList = list
+        self._index = 0
+    def __next__(self):
+        if self._index < len(self._objectsList._objectsList):
+            result =  self._objectsList._objectsList[self._index]
+            self._index += 1
+            return result
+        raise StopIteration
 
 class Background():
-      def __init__(self):
-            self.bgimage = pygame.image.load('assets/space.png')
+      def __init__(self, path):
+            self.bgimage = pygame.image.load(path)
             self.rectBGimg = self.bgimage.get_rect()
  
             self.bgY1 = self.rectBGimg.height
@@ -132,7 +199,7 @@ class Background():
             self.bgY2 = 0
             self.bgX2 = 0
  
-            self.moving_speed = 5
+            self.moving_speed = 3
          
       def update(self):
         self.bgY1 += self.moving_speed
