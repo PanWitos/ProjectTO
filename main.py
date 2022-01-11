@@ -53,19 +53,16 @@ class GameLoop():
     def gameLoop(self):
         objectsList = ObjectsList()
         debrisList = ObjectsDebrisList()
-        player = PlayerShip((300,600),(15,15),'assets/graphics/player/P1.png')
-        enemy = Enemy((300,200),(25,25),'assets/graphics/enemy/E1.png',1, 5)
-        enemy2 = Enemy((200,200),(25,25),'assets/graphics/enemy/E1.png',2, 5)
-        enemy3 = Enemy((400,200),(25,25),'assets/graphics/enemy/E1.png',3, 5)
         enemyList = ObjectsEnemyList()
-        enemyList.addObject(enemy)
-        enemyList.addObject(enemy2)
-        enemyList.addObject(enemy3)
-        objectsList.addObject(player)
-        objectsList.addObject(enemy)
-        objectsList.addObject(enemy2)
-        objectsList.addObject(enemy3)
+        objectsList.addObject(PlayerShip((300,600),(15,15),'assets/graphics/player/P1.png'))
+        objectsList.addObject(Enemy((300,200),(25,25),'assets/graphics/enemy/E1.png',1, 5))
+        objectsList.addObject(Enemy((200,200),(25,25),'assets/graphics/enemy/E1.png',2, 5))
+        objectsList.addObject(Enemy((400,200),(25,25),'assets/graphics/enemy/E1.png',3, 5))
+        for enem in objectsList:
+            if isinstance(enem, Enemy):
+                enemyList.addObject(enem)
         for enem in enemyList:
+            print(type(enem))
             enem.rotCenter(180)
         while True:
             for event in pygame.event.get():    
@@ -82,8 +79,8 @@ class GameLoop():
                 surface.blit(object.getSprite(), object.getPos())
                 object.movement()
             
-            if pygame.sprite.spritecollideany(player, enemyList):
-                e1 = pygame.sprite.spritecollideany(player, enemyList)
+            if pygame.sprite.spritecollideany(objectsList.accessObject(0), enemyList):
+                e1 = pygame.sprite.spritecollideany(objectsList.accessObject(0), enemyList)
                 e1.removeObject(self._iCounter)
 
             if (self._iCounter % self._dt)==0:
@@ -108,34 +105,6 @@ class ScreenObject():
     def removeObject(self, frame):
         objectsList = ObjectsList()
         objectsList.removeObject(self)
-        
-
-class Debris(ScreenObject):
-    def __init__(self, position, hitbox, spritePath, frame):
-        super().__init__(position, hitbox, spritePath)
-        self._pathList = list(spritePath)
-        self._frame = frame
-        self._endFrame = frame + 80
-        self._iCounter = 0
-        a = animatedSprite()
-        self._animated = a.animated(spritePath)
-    def changeSprite(self, sprite):
-        self._sprite = sprite
-    def update(self, frame):
-        if frame >= self._endFrame:
-            print("exploded")
-            self.removeObject(frame)
-        else:
-            self.changeSprite(pygame.transform.scale(self._animated[self._iCounter],(32,32)))
-            self._iCounter += 1
-    def movement(self):
-        pass
-    def removeObject(self, frame):
-        objectsList = ObjectsList()
-        debrisList = ObjectsDebrisList()
-        debrisList.removeObject(self)
-        objectsList.removeObject(self)
-
 
 class PlayerShip(ScreenObject):
     def __init__(self, position, hitbox, spritePath):
@@ -185,6 +154,31 @@ class Enemy(ScreenObject):
         enemyList.removeObject(self)
         objectsList.removeObject(self)
 
+class Debris(ScreenObject):
+    def __init__(self, position, hitbox, spritePath, frame):
+        super().__init__(position, hitbox, spritePath)
+        self._pathList = list(spritePath)
+        self._frame = frame
+        self._endFrame = frame + 80
+        self._iCounter = 0
+        a = animatedSprite()
+        self._animated = a.animated(spritePath)
+    def changeSprite(self, sprite):
+        self._sprite = sprite
+    def update(self, frame):
+        if frame >= self._endFrame:
+            self.removeObject(frame)
+        else:
+            self.changeSprite(pygame.transform.scale(self._animated[self._iCounter],(32,32)))
+            self._iCounter += 1
+    def movement(self):
+        pass
+    def removeObject(self, frame):
+        objectsList = ObjectsList()
+        debrisList = ObjectsDebrisList()
+        debrisList.removeObject(self)
+        objectsList.removeObject(self)
+        
 class Bullet(ScreenObject):
     def __init__(self, position, hitbox, spritePath):
         super().__init__(position, hitbox, spritePath)
@@ -196,28 +190,16 @@ class ObjectsList(metaclass = Singleton):
         self._objectsList.append(object)
     def removeObject(self, object):
         self._objectsList.remove(object)
+    def accessObject(self, index):
+        return self._objectsList[index]
     def __iter__(self):
         return ObjectsListIterator(self)
 
-class ObjectsDebrisList(metaclass = Singleton):
-    def __init__(self):
-        self._objectsList = []
-    def addObject(self, object):
-        self._objectsList.append(object)
-    def removeObject(self, object):
-        self._objectsList.remove(object)
-    def __iter__(self):
-        return ObjectsListIterator(self)
+class ObjectsDebrisList(ObjectsList):
+    pass
 
-class ObjectsEnemyList(metaclass = Singleton):
-    def __init__(self):
-        self._objectsList = []
-    def addObject(self, object):
-        self._objectsList.append(object)
-    def removeObject(self, object):
-        self._objectsList.remove(object)
-    def __iter__(self):
-        return ObjectsListIterator(self)
+class ObjectsEnemyList(ObjectsList):
+    pass
 
 class ObjectsListIterator():
     def __init__(self, list):
