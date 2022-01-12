@@ -4,6 +4,7 @@ import sys
 from pygame.locals import *
 import random, time
 from pygame import mixer
+import pickle
 
 surface = pygame.display.set_mode((600,800))
 
@@ -17,11 +18,12 @@ class Singleton(type):
 class Game(metaclass = Singleton):
     def __init__(self):
         pygame.init()
-        self._highscore = {}
     def startGame(self):
         GameLoop()
     def highscoreTable(self):
-        print("siema eniu")
+        self._menu = Highscores()
+        menuData = self._menu.highscoreInit()
+        menuData.mainloop(surface)
     def menuInit(self):
         self._menu = Menu()
         menuData = self._menu.menuInit()
@@ -40,8 +42,24 @@ class Menu():
         menu.add.button('Highscores', self._game.highscoreTable)
         menu.add.button('Exit', pygame_menu.events.EXIT)
         return menu
+        
 
-class GameLoop():
+class Highscores(metaclass = Singleton):
+    def __init__(self): 
+        self._size = (400,600)  
+        self._font = pygame.font.SysFont("Verdana", 30)   
+        self._game = Game()
+        self.highscoreInit()
+    def highscoreInit(self):
+        menu = pygame_menu.Menu('Highscores', self._size[0], self._size[1], theme=pygame_menu.themes.THEME_BLUE)
+        menu.add.button('Back', self._game.menuInit)
+        table = open("data/HighTable.pickle", "rb")
+        mixer.music.load("assets/music/bg/highscore.ogg")
+        mixer.music.play(-1)
+        surface.blit(self._font.render('quit' , True , (0,0,0)),(200,200))
+        return menu
+        
+class GameLoop(metaclass = Singleton):
     def __init__(self):
         self._list = ObjectsList()
         self._state = None
@@ -58,22 +76,26 @@ class GameLoop():
         mixer.music.play(-1)
         self.gameLoop()
     def gameLoop(self):
+        highscore = 0
         enemyOnScreen = 3
         objectsList = ObjectsList()
         debrisList = ObjectsDebrisList()
         enemyList = ObjectsEnemyList()
         bulletsList = ObjectsBulletsList()
+        destroyedEnemies = ObjectsDestroyedList()
         player = PlayerShip((300,600),(16,16),'assets/graphics/player/P1.png')
         objectsList.addObject(player)
-        objectsList.addObject(Enemy((300,200),(30,30),'assets/graphics/enemy/E1.png',1, 5, FlyStraight()))
-        objectsList.addObject(Enemy((200,200),(30,30),'assets/graphics/enemy/E1.png',2, 5, FlyStraight()))
-        objectsList.addObject(Enemy((400,200),(30,30),'assets/graphics/enemy/E1.png',3, 5, FlyStraight()))
+        objectsList.addObject(Enemy((300,200),(30,30),'assets/graphics/enemy/E1.png',1, 5, FlyStraight(),50))
+        objectsList.addObject(Enemy((200,200),(30,30),'assets/graphics/enemy/E1.png',2, 5, FlyStraight(),50))
+        objectsList.addObject(Enemy((400,200),(30,30),'assets/graphics/enemy/E1.png',2, 5, FlyStraight(),50))
+        objectsList.addObject(Boss((300,-128),(96,96),'assets/graphics/enemy/Boss1.png',10, 5, FlySideways(),200))
         for enem in objectsList:
             if isinstance(enem, Enemy):
                 enemyList.addObject(enem)
         for enem in enemyList:
             enem.rotCenter(180)
         while True:
+            destroyedEnemies.clearList()
             for event in pygame.event.get():    
                 if event.type == QUIT:
                     pygame.quit()
@@ -90,12 +112,15 @@ class GameLoop():
             iFrames = self._font_small.render(str(player.getIFrames()), True, (255,255,255))
             surface.blit(iFrames, (10,70))
 
+            highscoreText = self._font_small.render(str(highscore), True, (255,255,255))
+            surface.blit(highscoreText, (10,100))
+
             for object in objectsList:
                 surface.blit(object.getSprite(), object.getPos())
                 object.movement()
                 if object.rect.centery > 815:
                     object.removeObject(self._iCounter)
-                if object.rect.centery < -15:
+                if object.rect.centery < -150:
                     object.removeObject(self._iCounter)
             
             player.fire()
@@ -107,17 +132,16 @@ class GameLoop():
                 elif player.getIFrames() > 0:
                     enemy1.removeObject(self._iCounter)
                 if player.getHealth() <= 0 and player.getAlive() == 1:
-                    gameOver = GameEnd(self._iCounter, player)
+                    gameOver = GameEnd(self._iCounter, player, highscore)
                     self._gameOverFlag = 1
             
             if self._gameOverFlag == 1:
-                gameOver.gameOver(self._iCounter)
-                
+                gameOver.gameOver(self._iCounter)             
 
             for object in bulletsList:
                 if pygame.sprite.spritecollideany(object, enemyList):
                     e1 = pygame.sprite.spritecollideany(object, enemyList)
-                    e1.removeObject(self._iCounter)
+                    e1.getHit(object, self._iCounter)
                     object.removeObject(self._iCounter)
 
             if player.getIFrames() >= 0:
@@ -129,22 +153,25 @@ class GameLoop():
                     object.update(self._iCounter)
 
             if enemyList.size() < enemyOnScreen:
-                newEnem = Enemy((random.randint(16,584),0),(30,30),'assets/graphics/enemy/E1.png',1, 5, FlyWavy())
+                newEnem = Enemy((random.randint(16,584),0),(30,30),'assets/graphics/enemy/E1.png',1, 5, FlyWavy(),50)
                 newEnem.rotCenter(180)
                 objectsList.addObject(newEnem)
                 enemyList.addObject(newEnem)
 
-            print(enemyList.size())
+            for object in destroyedEnemies:
+                highscore += object.getValue()
             self._iCounter += 1
             pygame.display.update()
             self._FramePerSec.tick(self._FPS)
 
+
 class GameEnd():
-    def __init__(self, frame, player):
+    def __init__(self, frame, player, highscore):
         player.removeObject(frame)
         self._gameEndTextFrame = frame + 120
         self._gameEndFrame = frame + 240
         self._font = pygame.font.SysFont("Verdana", 50)
+        self._highscore = highscore
     def getGameEndFrame(self):
         return self._gameEndTextFrame, self._gameEndFrame
     def gameOver(self, frame):
@@ -208,11 +235,11 @@ class PlayerShip(ScreenObject):
             if pressed_keys[K_z]:
                 objectsList = ObjectsList()
                 objectsBulletsList = ObjectsBulletsList()
-                bullet = Bullet((self.rect.centerx+8,self.rect.centery),(8,8),"assets/graphics/other/bullet1.png",5)
+                bullet = Bullet((self.rect.centerx+8,self.rect.centery),(8,8),"assets/graphics/other/bullet1.png",5,1)
                 objectsList.addObject(bullet)
                 objectsBulletsList.addObject(bullet)
                 self._firestop = 1
-                self._firecounter = 5
+                self._firecounter = 15
         elif self._firestop == 1:
             self._firecounter -= 1
             if self._firecounter == 0:
@@ -232,27 +259,38 @@ class PlayerShip(ScreenObject):
     def getHit(self):
         self._health -= 1
         self._iFrames = 180
+        image = pygame.transform.scale(pygame.image.load("assets/graphics/other/invul.png"),(32,32))
+        self._sprite.blit(image,(0,0))
     def getHealth(self):
         return self._health
     def decIFrames(self):
         self._iFrames -= 1
+        if self._iFrames == 0:
+            self._sprite = pygame.image.load('assets/graphics/player/P1.png')
     def getAlive(self):
         return self._alive
                 
 
 class Enemy(ScreenObject):
-    def __init__(self, position, hitbox, spritePath, health, speed, state):
+    def __init__(self, position, hitbox, spritePath, health, speed, state, value):
         super().__init__(position, hitbox, spritePath)
-        self.health = health
+        self._health = health
         self._speed = speed
         self._state = state
         self._state.context = self
         self._offset = 5
+        self._value = value
     def movement(self):
         self._state.movement()
     def rotCenter(self, angle):
         self._sprite = pygame.transform.rotate(self._sprite, angle)
         self.rect = self._sprite.get_rect(center=self.rect.center)
+    def getHit(self, bullet, frame):
+        self._health -= bullet.getDamage()
+        if self._health <= 0:
+            destroyed = ObjectsDestroyedList()
+            destroyed.addObject(self)
+            self.removeObject(frame)
     def removeObject(self, frame):
         explosion = Debris((self.rect.centerx,self.rect.centery), (32,32), 'assets/graphics/animated/expl1.png', frame)
         debrisList = ObjectsDebrisList()
@@ -264,6 +302,8 @@ class Enemy(ScreenObject):
         objectsList.removeObject(self)
     def fire(self):
         pass
+    def getValue(self):
+        return self._value
 
 class EnemyState():
     def movement(self):
@@ -281,6 +321,36 @@ class FlyWavy(EnemyState):
         elif (self.context.rect.centerx - initialPos) > 50:
             self.context._offset = -5
         self.context.rect.move_ip(self.context._offset,self.context._speed) 
+
+class FlySideways(EnemyState):
+    def movement(self):
+        initialPos = self.context._position[0]
+        if self.context.rect.centery < 200:
+            self.context.rect.move_ip(0,self.context._speed) 
+        else:
+            if (self.context.rect.centerx - initialPos) < -200: 
+                self.context._offset = 5  
+            elif (self.context.rect.centerx - initialPos) > 200:
+                self.context._offset = -5
+            self.context.rect.move_ip(self.context._offset,0) 
+
+
+class Boss(Enemy):
+    def __init__(self, position, hitbox, spritePath, health, speed, state, value):
+        self._hitbox = pygame.Surface(hitbox)
+        self._position = position
+        self.rect = self._hitbox.get_rect(center = position)
+        self._sprite = pygame.transform.scale(pygame.image.load(spritePath), (128,128))
+        self._health = health
+        self._speed = speed
+        self._state = state
+        self._state.context = self
+        self._offset = 5
+        self._observer = None
+        self._value = value
+    
+
+
 class Debris(ScreenObject):
     def __init__(self, position, hitbox, spritePath, frame):
         super().__init__(position, hitbox, spritePath)
@@ -307,13 +377,14 @@ class Debris(ScreenObject):
         objectsList.removeObject(self)
         
 class Bullet(ScreenObject):
-    def __init__(self, position, hitbox, spritePath, speed):
+    def __init__(self, position, hitbox, spritePath, speed, damage):
         self._hitbox = pygame.Surface(hitbox)
         self._position = position
         self.rect = self._hitbox.get_rect(center = position)
         self._state = None
         self._sprite = pygame.transform.scale(pygame.image.load(spritePath), (8,8))
         self._speed = speed
+        self._damage = damage
     def movement(self):
         #pass
         self.rect.move_ip(0,-self._speed)
@@ -322,6 +393,8 @@ class Bullet(ScreenObject):
         bulletsList = ObjectsBulletsList()
         bulletsList.removeObject(self)
         objectsList.removeObject(self)
+    def getDamage(self):
+        return self._damage
 
 
 class ObjectsList(metaclass = Singleton):
@@ -343,6 +416,10 @@ class ObjectsDebrisList(ObjectsList):
 
 class ObjectsEnemyList(ObjectsList):
     pass
+
+class ObjectsDestroyedList(ObjectsList):
+    def clearList(self):
+        self._objectsList = []
 
 class ObjectsBulletsList(ObjectsList):
     pass
