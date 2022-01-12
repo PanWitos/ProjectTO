@@ -31,7 +31,7 @@ class Game(metaclass = Singleton):
 
 class Menu():
     def __init__(self):
-        self._size = (400,600)
+        self._size = (600,800)
         mixer.music.load("assets/music/bg/menu.ogg")
         mixer.music.set_volume(0.1)
         mixer.music.play(-1)
@@ -46,7 +46,7 @@ class Menu():
 
 class Highscores(metaclass = Singleton):
     def __init__(self): 
-        self._size = (400,600)  
+        self._size = (600,800)  
         self._font = pygame.font.SysFont("Verdana", 30)   
         self._game = Game()
         self.highscoreInit()
