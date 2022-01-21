@@ -5,7 +5,7 @@ from pygame.locals import *
 import random, time
 from pygame import mixer
 import pickle
-import json
+from operator import itemgetter
 
 surface = pygame.display.set_mode((600,800))
 
@@ -41,7 +41,7 @@ class Menu():
         mixer.music.play(-1)
         self._game = Game()
     def menuInit(self):
-        menu = pygame_menu.Menu('Welcome', self._size[0], self._size[1], theme=pygame_menu.themes.THEME_BLUE)
+        menu = pygame_menu.Menu('Space game', self._size[0], self._size[1], theme=pygame_menu.themes.THEME_BLUE)
         menu.add.button('Play', self._game.startGame)
         menu.add.button('Highscores', self._game.highscoreTable)
         menu.add.button('Exit', pygame_menu.events.EXIT)
@@ -57,6 +57,7 @@ class Highscores():
         mixer.music.play(-1)
         with open('data/HighTable.pickle', 'rb') as f:
             self._dict = pickle.load(f)
+        self._dict = sorted(self._dict, key=itemgetter(1), reverse=True)
         self._FPS = 60
         self._FramePerSec = pygame.time.Clock()
         self._bg = pygame.image.load('assets/graphics/other/space2.png')
@@ -115,6 +116,9 @@ class Highscores():
                         h = Highscores()
                         h.highscoreInit()
             
+            endText = self._font.render("Enter your name and press Enter: ", True, (255,255,255))
+            surface.blit(endText, (40,300))
+
             for box in input_boxes:
                 box.update()
             
@@ -123,6 +127,7 @@ class Highscores():
 
             pygame.display.update()
             self._FramePerSec.tick(self._FPS)
+
         
         
 class GameLoop(metaclass = Singleton):
@@ -151,6 +156,7 @@ class GameLoop(metaclass = Singleton):
         mixer.music.play(-1)
         self._iCounter = 0
     def gameLoop(self):
+        self._iCounter = 0
         highscore = 0
         objectsList = ObjectsList()
         debrisList = ObjectsDebrisList()
@@ -158,6 +164,12 @@ class GameLoop(metaclass = Singleton):
         bulletsList = ObjectsBulletsList()
         enemyBulletsList = ObjectsEnemyBulletsList()
         destroyedEnemies = ObjectsDestroyedList()
+        objectsList.clearList()
+        debrisList.clearList()
+        enemyList.clearList()
+        bulletsList.clearList()
+        enemyBulletsList.clearList()
+        destroyedEnemies.clearList()
         player = PlayerShip((300,600),(16,16),'assets/graphics/player/P1.png')
         objectsList.addObject(player)
         for enem in objectsList:
@@ -174,17 +186,17 @@ class GameLoop(metaclass = Singleton):
             self._bg.update()
             self._bg.render()
 
-            scores = self._font_small.render(str(self._iCounter), True, (255,255,255))
-            surface.blit(scores, (10,10))
+            healthText = self._font_small.render("Health: ", True, (255,255,255))
+            surface.blit(healthText, (10,10))
 
             health = self._font_small.render(str(player.getHealth()), True, (255,255,255))
-            surface.blit(health, (10,40))
+            surface.blit(health, (90,10))
 
-            iFrames = self._font_small.render(str(player.getIFrames()), True, (255,255,255))
-            surface.blit(iFrames, (10,70))
+            highText = self._font_small.render("Score: ", True, (255,255,255))
+            surface.blit(highText, (10,40))
 
             highscoreText = self._font_small.render(str(highscore), True, (255,255,255))
-            surface.blit(highscoreText, (10,100))
+            surface.blit(highscoreText, (90,40))
 
             for object in objectsList:
                 surface.blit(object.getSprite(), object.getPos())
@@ -194,31 +206,36 @@ class GameLoop(metaclass = Singleton):
                 if object.rect.centery < -150:
                     object.removeObject(self._iCounter)
             
+            if player in objectsList:
+                player.fire()
             
-            player.fire()
-            
-            if pygame.sprite.spritecollideany(player, enemyList):
-                enemy1 = pygame.sprite.spritecollideany(player, enemyList)
-                if player.getIFrames() <= 0:
-                    player.getHit()
-                elif player.getIFrames() > 0:
-                    enemy1.removeObject(self._iCounter)
-                if player.getHealth() <= 0 and player.getAlive() == 1:
-                    gameOver = GameEnd(self._iCounter, player, highscore)
-                    self._gameOverFlag = 1
-            elif pygame.sprite.spritecollideany(player, enemyBulletsList):
-                bullet1 = pygame.sprite.spritecollideany(player, enemyBulletsList)
-                if player.getIFrames() <= 0:
-                    player.getHit()
-                    bullet1.removeObject(self._iCounter)
-                elif player.getIFrames() > 0:
-                    bullet1.removeObject(self._iCounter)
-                if player.getHealth() <= 0 and player.getAlive() == 1:
-                    gameOver = GameEnd(self._iCounter, player, highscore)
-                    self._gameOverFlag = 1
+            if player in objectsList:
+                if pygame.sprite.spritecollideany(player, enemyList):
+                    enemy1 = pygame.sprite.spritecollideany(player, enemyList)
+                    if player.getIFrames() <= 0:
+                        player.getHit()
+                    elif player.getIFrames() > 0:
+                        enemy1.removeObject(self._iCounter)
+                    if player.getHealth() <= 0 and player.getAlive() == 1:
+                        gameOver = GameEnd(self._iCounter, player, highscore)
+                        self._gameOverFlag = 1
+                elif pygame.sprite.spritecollideany(player, enemyBulletsList):
+                    bullet1 = pygame.sprite.spritecollideany(player, enemyBulletsList)
+                    if player.getIFrames() <= 0:
+                        player.getHit()
+                        bullet1.removeObject(self._iCounter)
+                    elif player.getIFrames() > 0:
+                        bullet1.removeObject(self._iCounter)
+                    if player.getHealth() <= 0 and player.getAlive() == 1:
+                        gameOver = GameEnd(self._iCounter, player, highscore)
+                        self._gameOverFlag = 1
+                      
             
             if self._gameOverFlag == 1:
-                gameOver.gameOver(self._iCounter)             
+                if player in objectsList:
+                    objectsList.removeObject(player)
+                gameOver.gameOver(self._iCounter) 
+                          
 
             for object in bulletsList:
                 if pygame.sprite.spritecollideany(object, enemyList):
@@ -663,6 +680,8 @@ class ObjectsList(metaclass = Singleton):
             return True
         else:
             return False
+    def clearList(self):
+        self._objectsList = []
 
 class ObjectsDebrisList(ObjectsList):
     pass
